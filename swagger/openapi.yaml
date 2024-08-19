@@ -261,7 +261,7 @@ paths:
       parameters:
         - name: task_id
           in: path
-          description: "ID da tarefa para retornar"
+          description: "ID da tarefa para alterar"
           required: true
           schema:
             type: integer
@@ -318,11 +318,11 @@ paths:
                   
     delete:
       summary: "Alterar uma tarefa"
-      description: "o usuário pode alterar um ou mais campos de uma tarefa já cadastrada. Essa requisição suporta receber dados de forma parcial."
+      description: "o usuário pode excluir uma tarefa"
       parameters:
         - name: task_id
           in: path
-          description: "ID da tarefa para retornar"
+          description: "ID da tarefa para deletar"
           required: true
           schema:
             type: integer
