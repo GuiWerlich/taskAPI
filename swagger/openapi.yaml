@@ -1,0 +1,484 @@
+openapi: 3.0.1
+info:
+  title: API de Tarefas
+  description: |
+    Essa API foi construída com o propósito de gerenciar tarefas do dia-a-dia.
+    
+    Configuração do Banco de Dados
+
+    1. **Instalar PostgreSQL**
+       - Baixe e instale PostgreSQL a partir do [site oficial](https://www.postgresql.org/download/).
+    
+    2. **Criar o Banco de Dados**
+       - Abra o terminal ou use pgAdmin para criar um banco de dados com o nome `nome_do_banco`.
+    
+    3. **Configurar Variáveis de Ambiente**
+       - Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+    
+         ```ini
+         POSTGRES_DB=nome_do_banco
+         POSTGRES_USER=nome_do_usuario
+         POSTGRES_PASSWORD=sua_senha
+         ```
+         
+         obs: utilize nomes de sua escolha
+    
+    4. **Rodar Migrações**
+       - No terminal, execute os comandos:
+    
+         ```bash
+         python manage.py makemigrations
+         python manage.py migrate
+         ```
+    
+    5. **Iniciar o Servidor**
+       - Execute o comando:
+    
+         ```bash
+         python manage.py runserver
+         ```
+
+    **Autenticação:**
+    - A API usa autenticação via JWT. Realize o cadastro de usuário e login para obter tokens.
+    - O JSON de resposta do login incluirá `ACCESS` e `REFRESH` tokens.
+    - Copie o token `ACCESS` e use-o no botão "Authorize" na parte superior direita do Swagger UI.
+    
+    **Soft Delete:**
+    
+    Essa aplicação utiliza do soft delete para garantir maior persistencia de dados em casos que se façam necessários recuperação de dados e auditorias. 
+    Ao deletar uma tarefa, ela irá receber uma atribuição de "deletado", mas ainda ficará armazenado no banco de dados. Todas as requisições feitas para tarefas que estão marcadas como deletadas não serão retornadas em nenhuma das rotas.
+    
+  version: 0.0.1
+  contact:
+    name: Guilherme Werlich
+    email: guiwerlichdev@gmail.com
+servers:
+  - url: http://localhost:8000
+    description: API de teste
+paths:
+  /api/register-users/:
+    post:
+      summary: "cadastro de usuário"
+      description: "Realiza a criação de cadastro de um novo usuário para acessar a aplicação."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: "username do novo usuário."
+                password:
+                  type: string
+                  description: "senha do novo usuário."
+                email:
+                 format: email
+                 type: string
+                 description: "e-mail do novo usuário."
+                birthdate:
+                 format: date
+                 type: string
+                 description: "data de nascimento do usuário."
+                first_name:
+                 type: string
+                 description: "primeiro nome do usuário."
+                last_name:
+                 type: string
+                 description: "sobrenome do usuário."
+                is_employee:
+                  type: boolean
+                  description: "indica se o usuário é funcionário(true) ou não (false)."
+      responses:
+        201:
+          description: "Cadastro realizado com sucesso!"
+        400:
+          description: "Possiveis problemas: Os dados estão incompletos; Os dados são invalidos; Username ja está sendo utilizado; E-mail ja está sendo utilizado."
+  
+  /api/users/login/:
+    post:
+      summary: "autenticação de usuário"
+      description: "realiza o login do usuário. Em caso de sucesso os tokens de access e refresh serão exibidos. O access token será obrigatório para fazer as requisições dentro da aplicação. Caso contrario um erro de autenticação será retornado."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: "username do usuário cadastrado."
+                password:
+                  type: string
+                  description: "senha do usuário cadastrado."
+      responses:
+        200:
+          description: "Usuário logado"
+        401:
+          description: "Não existem credenciais com o usuário e senha informados. Verificar se os campos foram preenchidos corretamente ou criar um novo usuário no passo anterior."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Login'
+        
+  /api/tasks/:
+    post:
+      summary: "cadastrar uma tarefa"
+      description: "o usuário pode cadastrar uma tarefa que desejar"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: "título da tarefa a ser executada"
+                description:
+                  type: string
+                  description: "detalhes de como a tarefa deve ser realizada"
+                due_date:
+                  type: string
+                  format: date
+                  description: "prazo para realização da tarefa"
+      responses:
+        201:
+          description: "Tarefa cadastrada"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task_Response"
+        400:
+          description: "Possiveis problemas: Os dados estão incompletos; Os dados são invalidos."
+        401:
+          description: "Falha de autenticação: Token de acesso não foi fornecido; usuário não tem permissão como funcionário."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Credentials'
+      security:
+        
+        - auth: []
+          
+    get:
+      summary: "Visualizar tarefas"
+      description: "Retorna todas as tarefas cadastradas, com suporte para filtragem por título (que pode ser pesquisados tanto em letras maiúsculas como minúsculas) e prazo (no formato YYYY-MM-DD)."
+      parameters:
+        - name: title
+          in: query
+          description: "Título da tarefa para filtrar"
+          required: false
+          schema:
+            type: string
+        - name: due_date
+          in: query
+          description: "Prazo da tarefa para filtrar"
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        200:
+          description: "Sucesso"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task_Response_Get"
+                
+        400:
+          description: "Buscar data com um formato incorreto"
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Date_Format'
+                  
+        401:
+          description: "Falha de autenticação: Token de acesso não foi fornecido; usuário não tem permissão como funcionário."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Credentials'
+        
+        404:
+          description: "Possiveis erros: Prazo com data não encontrada; Título não encontrado."
+          content:
+            application/json:
+              examples:
+                data não encontrada:
+                  $ref: '#/components/examples/Not_Found_Date'
+                titulo não encontrado:
+                  $ref: '#/components/examples/Not_Found_Title'
+      security:
+        
+        - auth: []
+                  
+  
+  /api/tasks/{task_id}/:
+    get:
+      summary: "Visualizar uma tarefa específica"
+      description: "Retorna os detalhes de uma tarefa específica com base no ID da tarefa."
+      parameters:
+        - name: task_id
+          in: path
+          description: "ID da tarefa para retornar"
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: "Detalhes da tarefa retornados com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task_Response"
+                
+        401:
+          description: "Falha de autenticação: Token de acesso não foi fornecido; usuário não tem permissão como funcionário."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Credentials'
+                  
+        404:
+          description: "Tarefa não encontrada."
+          content:
+            application/json:
+              examples:
+                tarefa não encontrada:
+                  $ref: '#/components/examples/Not_Found_Task'
+      security:
+        
+        - auth: []
+                  
+    put:
+      summary: "Alterar uma tarefa"
+      description: "o usuário pode alterar um ou mais campos de uma tarefa já cadastrada. Essa requisição suporta receber dados de forma parcial."
+      parameters:
+        - name: task_id
+          in: path
+          description: "ID da tarefa para retornar"
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: "título da tarefa a ser executada"
+                description:
+                  type: string
+                  description: "detalhes de como a tarefa deve ser realizada"
+                due_date:
+                  type: string
+                  format: date
+                  description: "prazo para realização da tarefa"
+      responses:
+        200:
+          description: "Dados da tarefa alterados com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task_Response"
+        
+        400:
+          description: "Requisição vazia. Necessário informar um ou mais campos para alterar."
+          content:
+            application/json:
+              examples:
+                requisição vazia:
+                  $ref: "#/components/examples/Empty_Request"
+                
+        401:
+          description: "Falha de autenticação: Token de acesso não foi fornecido; usuário não tem permissão como funcionário."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Credentials'
+                  
+        404:
+          description: "Tarefa não encontrada."
+          content:
+            application/json:
+              examples:
+                tarefa não encontrada:
+                  $ref: '#/components/examples/Not_Found_Task'
+      security:
+        
+        - auth: []
+                  
+    delete:
+      summary: "Alterar uma tarefa"
+      description: "o usuário pode alterar um ou mais campos de uma tarefa já cadastrada. Essa requisição suporta receber dados de forma parcial."
+      parameters:
+        - name: task_id
+          in: path
+          description: "ID da tarefa para retornar"
+          required: true
+          schema:
+            type: integer
+            
+      responses:
+        204:
+          description: "Tarefa excluida com sucesso."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Deleted_Task'
+                
+        401:
+          description: "Falha de autenticação: Token de acesso não foi fornecido; usuário não tem permissão como funcionário."
+          content:
+            application/json:
+              examples:
+                invalid:
+                  $ref: '#/components/examples/Invalid_Credentials'
+                  
+        404:
+          description: "Tarefa não encontrada."
+          content:
+            application/json:
+              examples:
+                tarefa não encontrada:
+                  $ref: '#/components/examples/Not_Found_Task'
+      security:
+        
+        - auth: []
+      
+          
+components:
+  schemas:
+    Task_Response:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: "id da tarefa"
+        title:
+          type: string
+          description: "título da tarefa a ser executada"
+        description:
+          type: string
+          description: "detalhes de como a tarefa deve ser realizada"
+        due_date:
+          type: string
+          format: date
+          description: "prazo para realização da tarefa"
+        created_at:
+          type: string
+          format: date-time
+          description: "data e hora da criação da tarefa"
+        updated_at:
+          type: string
+          format: date-time
+          description: "data e hora da ultima atualização da tarefa"
+    
+    Task_Response_Get:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: integer
+            description: "id da tarefa"
+          title:
+            type: string
+            description: "título da tarefa a ser executada"
+          description:
+            type: string
+            description: "detalhes de como a tarefa deve ser realizada"
+          due_date:
+            type: string
+            format: date
+            description: "prazo para realização da tarefa"
+          created_at:
+            type: string
+            format: date-time
+            description: "data e hora da criação da tarefa"
+          updated_at:
+            type: string
+            format: date-time
+            description: "data e hora da ultima atualização da tarefa"
+    
+  examples:
+    Invalid_Credentials:
+      summary: "Credenciais invalidas"
+      value:
+        detail: "Authentication credentials were not provided."
+    
+    Invalid_Login:
+      summary: "login e/ou senha inválidos"
+      value:
+        detail: "No active account found with the given credentials"
+        
+    Invalid_Date_Format:
+      summary: "Data com formato incorreto"
+      value:
+        message: "Invalid due_date format. Use YYYY-MM-DD."
+    
+    Not_Found_Date:
+      summary: "Prazos com datas não encontradas"
+      value:
+          message: "No tasks found with the given due_date"
+    
+    Not_Found_Title:
+      summary: "Titulo não encontrado"
+      value:
+        message: "No tasks found with the given title"
+    
+    Not_Found_Task:
+      summary: "Tarefa não encontrada"
+      value:
+        message: "Task Not Found"
+    
+    Empty_Request:
+      summary: "Nenhum campo informado na requisição"
+      value:
+        message: "No data provided. Accepted fields: title, description, due_date"
+    
+    Deleted_Task:
+      summary: "Tarefa deletada"
+      value:
+        message: "Task deleted successfully."
+        
+  
+  securitySchemes:
+    auth:
+      type: http
+      scheme: bearer
+
+  
+
+  
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
