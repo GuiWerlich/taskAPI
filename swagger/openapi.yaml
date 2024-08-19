@@ -260,7 +260,7 @@ paths:
       description: "o usuário pode alterar um ou mais campos de uma tarefa já cadastrada. Essa requisição suporta receber dados de forma parcial."
       parameters:
         - name: task_id
-          in: pat
+          in: path
           description: "ID da tarefa para alterar"
           required: true
           schema:
